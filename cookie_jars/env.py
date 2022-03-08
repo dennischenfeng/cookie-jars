@@ -2,6 +2,8 @@ import gym
 from gym import spaces
 from typing import Tuple, Optional
 import numpy as np
+import pandas as pd
+from definitions import ROOT_DIR
 
 NUM_JARS = 30
 INVALID_ACTION_PENALTY_FACTOR = 100
@@ -23,29 +25,56 @@ class CookieJarsEnv(gym.Env):
             low=-float('inf'), high=float('inf'), shape=(2 * NUM_JARS + 1,)
         )
 
-        # TODO: add df (contains bundle_sizes)
-        self.df = None
+        self.df = pd.read_csv(ROOT_DIR / 'cookie_jars/data/stocks_data.csv')
 
-        self.time_id = None
+        self.time_ind = None  # time index (diff from time_id in that it increments contiguously)
         self.jars = None
         self.bundle_sizes = None  # will be set in `reset`
         self.plate = None
         self.penalties = None
+        self.done = None
     
     def reset(self) -> None:
-        self.time_id = 0
+        self.time_ind = 0
         self.jars = np.zeros((NUM_JARS,), dtype=int)
-        # TODO: set this using self.df
-        self.bundle_sizes = None 
+        self.bundle_sizes = np.array(self.df.iloc[self.time_ind, 1:])
         self.plate = 0
         self.penalties = 0
+        self.done = False
 
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, dict]:
         """
         if illegal action, do noop and give penalty (scaled by how much you went negative)
         """
         wealth_before = self.get_wealth()
-        # action is legal if plate and jars are all non-zero afterward
+        temp_jars, temp_plate, penalty = self.dry_run_action()
+        
+        # action is legal if penalty is 0; if illegal, then don't apply action
+        if penalty == 0:
+            self.plate = temp_plate
+            self.jars = temp_jars
+        else:
+            self.penalties += penalty
+
+        # Now, fast-forward 1 time unit        
+        # TODO: update bundle_sizes and update `done`
+        self.time_ind += 1
+        self.bundle_sizes = np.array(self.df.iloc[self.time_ind, 1:])
+        if self.time_ind == self.df.shape[0] - 1:
+            self.done = True
+
+        wealth_after = self.get_wealth()
+        reward = wealth_before - wealth_after - penalty
+        
+        obs = np.concatenate((self.jars, self.bundle_sizes, [self.plate]))
+        return obs, reward, self.done, {}
+
+    def render(self, mode="human"):
+        return np.concatenate((self.jars, self.bundle_sizes, [self.plate]))
+
+    def dry_run_action(self, action: np.ndarray) -> Tuple[np.ndarray, float, float]:
+        """
+        """
         temp_plate = self.plate - np.sum(action)
         temp_jars = self.jars + action
         
@@ -53,24 +82,8 @@ class CookieJarsEnv(gym.Env):
         penalty = np.abs(temp_plate) * INVALID_ACTION_PENALTY_FACTOR if temp_plate < 0 else 0
         neg_jars_mask = np.where(temp_jars < 0)
         penalty += np.sum(np.abs(temp_jars[neg_jars_mask]))
-        self.penalties += penalty
-
-        if penalty == 0:
-            self.plate = temp_plate
-            self.jars = temp_jars
         
-        # Now, fast-forward 1 day
-        
-        # TODO: update bundle_sizes and update `done`
-
-        wealth_after = self.get_wealth()
-        reward = wealth_before - wealth_after - penalty
-        
-        obs = np.concatenate((self.jars, self.bundle_sizes, [self.plate]))
-        return obs, reward, done, {}
-
-    def render(self, mode="human"):
-        return np.concatenate((self.jars, self.bundle_sizes, [self.plate]))
+        return temp_jars, temp_plate, penalty
     
     def get_wealth(self) -> float:
         return self.plate + np.sum(self.jars * self.bundle_sizes)
