@@ -3,7 +3,7 @@ from gym import spaces
 from typing import Tuple, Optional
 import numpy as np
 
-NUM_JARS = 10
+NUM_JARS = 30
 INVALID_ACTION_PENALTY_FACTOR = 100
 
 
@@ -70,7 +70,7 @@ class CookieJarsEnv(gym.Env):
         return obs, reward, done, {}
 
     def render(self, mode="human"):
-        return super().render(mode)
+        return np.concatenate((self.jars, self.bundle_sizes, [self.plate]))
     
     def get_wealth(self) -> float:
         return self.plate + np.sum(self.jars * self.bundle_sizes)
