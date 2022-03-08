@@ -57,7 +57,6 @@ class CookieJarsEnv(gym.Env):
             self.penalties += penalty
 
         # Now, fast-forward 1 time unit        
-        # TODO: update bundle_sizes and update `done`
         self.time_ind += 1
         self.bundle_sizes = np.array(self.df.iloc[self.time_ind, 1:])
         if self.time_ind == self.df.shape[0] - 1:
