@@ -1,3 +1,4 @@
+from mimetypes import init
 import gym
 from gym import spaces
 from typing import Tuple, Optional
@@ -5,12 +6,9 @@ import numpy as np
 import pandas as pd
 from definitions import ROOT_DIR
 
-NUM_JARS = 30
-INVALID_ACTION_PENALTY_FACTOR = 100
-
 
 class CookieJarsEnv(gym.Env):
-    def __init__(self) -> None:
+    def __init__(self, initial_plate=1e6, penalty_factor=100) -> None:
         super().__init__()
         """
         obs space
@@ -18,14 +16,22 @@ class CookieJarsEnv(gym.Env):
         obs - ()
         state (includes datetime)
         """
-        # Action space: 1.0 represents 100% of cookie wealth (all cookies in plate and jars)
-        self.action_space = spaces.Box(low=-float('inf'), high=float('inf'), shape=(NUM_JARS,))
-        # Obs space: (num bundles in each jar... , bundle sizes..., num cookies on plate)
-        self.observation_space = spaces.Box(
-            low=-float('inf'), high=float('inf'), shape=(2 * NUM_JARS + 1,)
-        )
+        self.initial_plate = initial_plate
+        self.penalty_factor = penalty_factor
 
         self.df = pd.read_csv(ROOT_DIR / 'cookie_jars/data/stocks_data.csv')
+        assert self.df.columns[0] == 'time_id'
+        self.episode_length = self.df.shape[0] - 1  # num steps in episode
+        self.num_jars = self.df.shape[1] - 1
+
+        # Action space: 1.0 represents 100% of cookie wealth (all cookies in plate and jars)
+        self.action_space = spaces.Box(
+            low=-float('inf'), high=float('inf'), shape=(self.num_jars,)
+        )
+        # Obs space: (num bundles in each jar... , bundle sizes..., num cookies on plate)
+        self.observation_space = spaces.Box(
+            low=-float('inf'), high=float('inf'), shape=(2 * self.num_jars + 1,)
+        )
 
         self.time_ind = None  # time index (diff from time_id in that it increments contiguously)
         self.jars = None
@@ -36,9 +42,9 @@ class CookieJarsEnv(gym.Env):
     
     def reset(self) -> None:
         self.time_ind = 0
-        self.jars = np.zeros((NUM_JARS,), dtype=int)
+        self.jars = np.zeros((self.num_jars,), dtype=int)
         self.bundle_sizes = np.array(self.df.iloc[self.time_ind, 1:])
-        self.plate = 0
+        self.plate = self.initial_plate
         self.penalties = 0
         self.done = False
 
@@ -46,9 +52,10 @@ class CookieJarsEnv(gym.Env):
         """
         if illegal action, do noop and give penalty (scaled by how much you went negative)
         """
-        wealth_before = self.get_wealth()
-        temp_jars, temp_plate, penalty = self.dry_run_action()
-        
+        wealth_old = self.get_wealth()
+        bundle_size_old = self.bundle_sizes
+        temp_jars, temp_plate, penalty = self.dry_run_action(action)
+
         # action is legal if penalty is 0; if illegal, then don't apply action
         if penalty == 0:
             self.plate = temp_plate
@@ -56,14 +63,15 @@ class CookieJarsEnv(gym.Env):
         else:
             self.penalties += penalty
 
-        # Now, fast-forward 1 time unit        
+        # Now, traverse 1 time unit, growing/shrinking cookie jars
         self.time_ind += 1
         self.bundle_sizes = np.array(self.df.iloc[self.time_ind, 1:])
-        if self.time_ind == self.df.shape[0] - 1:
+        self.jars *= self.bundle_sizes / bundle_size_old
+        if self.time_ind == self.episode_length:
             self.done = True
 
-        wealth_after = self.get_wealth()
-        reward = wealth_before - wealth_after - penalty
+        wealth_new = self.get_wealth()
+        reward = wealth_new - wealth_old - penalty
         
         obs = np.concatenate((self.jars, self.bundle_sizes, [self.plate]))
         return obs, reward, self.done, {}
@@ -78,11 +86,11 @@ class CookieJarsEnv(gym.Env):
         temp_jars = self.jars + action
         
         # penalty indicates how badly your action turned you negative
-        penalty = np.abs(temp_plate) * INVALID_ACTION_PENALTY_FACTOR if temp_plate < 0 else 0
+        penalty = np.abs(temp_plate) * self.penalty_factor if temp_plate < 0 else 0
         neg_jars_mask = np.where(temp_jars < 0)
         penalty += np.sum(np.abs(temp_jars[neg_jars_mask]))
         
         return temp_jars, temp_plate, penalty
     
     def get_wealth(self) -> float:
-        return self.plate + np.sum(self.jars * self.bundle_sizes)
+        return self.plate + np.sum(self.jars)
