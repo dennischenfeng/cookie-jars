@@ -8,18 +8,30 @@ from definitions import ROOT_DIR
 
 
 class CookieJarsEnv(gym.Env):
-    def __init__(self, initial_plate=1e6, penalty_factor=100) -> None:
+    def __init__(self, split: str, initial_plate: float = 1e6, penalty_factor: float = 100) -> None:
         super().__init__()
         """
-        obs space
-        action space
-        obs - ()
-        state (includes datetime)
+        :param split: 'train', 'val', or 'test' split. 
         """
         self.initial_plate = initial_plate
         self.penalty_factor = penalty_factor
 
-        self.df = pd.read_csv(ROOT_DIR / 'cookie_jars/data/stocks_data.csv')
+        raw_df = pd.read_csv(ROOT_DIR / 'cookie_jars/data/stocks_data.csv')
+        num_total = raw_df.shape[0]
+        num_val = int(0.2 * num_total)
+        num_test = num_val
+        num_train = num_total - num_val - num_test
+        if split == 'train':
+            self.df = raw_df.iloc[:num_train, :]
+        elif split == 'val':
+            self.df = raw_df.iloc[num_train:(num_train + num_val), :]
+        elif split == 'test':
+            self.df = raw_df.iloc[(num_train + num_val):, :]
+        else:
+            raise ValueError(
+                f"`split` argument must be one of (train, val, test). Offending arg: {split}"
+            )
+
         assert self.df.columns[0] == 'time_id'
         self.episode_length = self.df.shape[0] - 1  # num steps in episode
         self.num_jars = self.df.shape[1] - 1

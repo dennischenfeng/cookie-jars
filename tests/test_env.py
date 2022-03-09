@@ -8,7 +8,7 @@ import numpy as np
 
 
 def test_env_obs_and_rew():
-    env = CookieJarsEnv()
+    env = CookieJarsEnv('train')
     env.reset()
     assert env.time_ind == 0
 
@@ -74,7 +74,7 @@ def test_env_obs_and_rew():
 
 
 def test_env_done():
-    env = CookieJarsEnv()
+    env = CookieJarsEnv('train')
     env.reset()
 
     action = np.zeros(30)
@@ -85,3 +85,9 @@ def test_env_done():
     
     obs, rew, done, info = env.step(action)
     assert done
+
+
+def test_env_bad_split():
+    with pytest.raises(ValueError):
+        _ = CookieJarsEnv('trian')
+
