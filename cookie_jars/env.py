@@ -38,11 +38,11 @@ class CookieJarsEnv(gym.Env):
 
         # Action space: 1.0 represents 100% of cookie wealth (all cookies in plate and jars)
         self.action_space = spaces.Box(
-            low=-float('inf'), high=float('inf'), shape=(self.num_jars,)
+            low=-1e6, high=1e6, shape=(self.num_jars,)
         )
-        # Obs space: (num bundles in each jar... , bundle sizes..., num cookies on plate)
+        # Obs space: (num cookies in each jar... , bundle sizes..., num cookies on plate)
         self.observation_space = spaces.Box(
-            low=-float('inf'), high=float('inf'), shape=(2 * self.num_jars + 1,)
+            low=-1e6, high=1e6, shape=(2 * self.num_jars + 1,)
         )
 
         self.time_ind = None  # time index (diff from time_id in that it increments contiguously)
@@ -54,11 +54,14 @@ class CookieJarsEnv(gym.Env):
     
     def reset(self) -> None:
         self.time_ind = 0
-        self.jars = np.zeros((self.num_jars,), dtype=int)
+        self.jars = np.zeros((self.num_jars,))
         self.bundle_sizes = np.array(self.df.iloc[self.time_ind, 1:])
         self.plate = self.initial_plate
         self.penalties = 0
         self.done = False
+
+        obs = np.concatenate((self.jars, self.bundle_sizes, [self.plate]))
+        return obs
 
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, dict]:
         """
@@ -89,7 +92,13 @@ class CookieJarsEnv(gym.Env):
         return obs, reward, self.done, {}
 
     def render(self, mode="human"):
-        return np.concatenate((self.jars, self.bundle_sizes, [self.plate]))
+        # return np.concatenate((self.jars, self.bundle_sizes, [self.plate]))
+        return (
+            f"total={self.plate + np.sum(self.jars) - self.penalties}, "
+            f"plate={self.plate}, "
+            f"sum_jars={np.sum(self.jars)}, "
+            f"penalties={self.penalties}."
+        )
 
     def dry_run_action(self, action: np.ndarray) -> Tuple[np.ndarray, float, float]:
         """
