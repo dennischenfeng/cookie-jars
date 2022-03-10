@@ -38,7 +38,7 @@ class CookieJarsEnv(gym.Env):
 
         # Action space: 1.0 represents 100% of cookie wealth (all cookies in plate and jars)
         self.action_space = spaces.Box(
-            low=-1e6, high=1e6, shape=(self.num_jars,)
+            low=-1.0, high=1.0, shape=(self.num_jars,)
         )
         # Obs space: (num cookies in each jar... , bundle sizes..., num cookies on plate)
         self.observation_space = spaces.Box(
@@ -65,6 +65,7 @@ class CookieJarsEnv(gym.Env):
 
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, dict]:
         """
+        
         if illegal action, do noop and give penalty (scaled by how much you went negative)
         """
         wealth_old = self.get_wealth()
@@ -103,8 +104,9 @@ class CookieJarsEnv(gym.Env):
     def dry_run_action(self, action: np.ndarray) -> Tuple[np.ndarray, float, float]:
         """
         """
-        temp_plate = self.plate - np.sum(action)
-        temp_jars = self.jars + action
+        wealth = self.get_wealth()
+        temp_plate = self.plate - np.sum(action * wealth)
+        temp_jars = self.jars + action * wealth
         
         # penalty indicates how badly your action turned you negative
         penalty = np.abs(temp_plate) * self.penalty_factor if temp_plate < 0 else 0

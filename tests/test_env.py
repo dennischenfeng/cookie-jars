@@ -25,9 +25,10 @@ def test_env_obs_and_rew():
     assert rew == 0
 
     action = np.zeros(30)
-    action[0] = 100
-    action[2] = 200
-    action[4] = 1000
+    wealth = env.get_wealth()
+    action[0] = 100 / wealth
+    action[2] = 200 / wealth
+    action[4] = 1000 / wealth
     obs, rew, done, info = env.step(action)
     jars = obs[:env.num_jars]
     bundle_sizes = obs[env.num_jars:-1]
@@ -42,9 +43,10 @@ def test_env_obs_and_rew():
     assert rew > 0
 
     action = np.zeros(30)
-    action[0] = -50
-    action[2] = 200
-    action[4] = 1000
+    wealth = env.get_wealth()
+    action[0] = -50 / wealth
+    action[2] = 200 / wealth
+    action[4] = 1000 / wealth
     obs, rew, done, info = env.step(action)
     jars = obs[:env.num_jars]
     bundle_sizes = obs[env.num_jars:-1]
@@ -62,8 +64,9 @@ def test_env_obs_and_rew():
 
     # illegal action
     action = np.zeros(30)
-    action[0] = 0
-    action[2] = -1000
+    wealth = env.get_wealth()
+    action[0] = 0 / wealth
+    action[2] = -1000 / wealth
     obs, rew, done, info = env.step(action)
     jars = obs[:env.num_jars]
     bundle_sizes = obs[env.num_jars:-1]
@@ -89,5 +92,5 @@ def test_env_done():
 
 def test_env_bad_split():
     with pytest.raises(ValueError):
-        _ = CookieJarsEnv('trian')
+        _ = CookieJarsEnv('trian')  # notice the typo
 
