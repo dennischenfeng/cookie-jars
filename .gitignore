@@ -130,3 +130,8 @@ dmypy.json
 
 # vscode
 .vscode
+
+# wandb and tensorboard logging
+wandb
+notebooks/runs
+notebooks/models
