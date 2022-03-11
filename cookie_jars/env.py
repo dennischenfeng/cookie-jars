@@ -42,7 +42,7 @@ class CookieJarsEnv(gym.Env):
         )
         # Obs space: (num cookies in each jar... , bundle sizes..., num cookies on plate)
         self.observation_space = spaces.Box(
-            low=-1e6, high=1e6, shape=(2 * self.num_jars + 1,)
+            low=0.0, high=1e6, shape=(2 * self.num_jars + 1,)
         )
 
         self.time_ind = None  # time index (diff from time_id in that it increments contiguously)
