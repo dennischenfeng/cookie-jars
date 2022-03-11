@@ -1,11 +1,10 @@
-from mimetypes import init
 import gym
 from gym import spaces
 from typing import Tuple, Optional
 import numpy as np
 import pandas as pd
 from definitions import ROOT_DIR
-
+from scipy.special import softmax
 
 class CookieJarsEnv(gym.Env):
     def __init__(self, split: str, initial_plate: float = 1e6, penalty_factor: float = 100) -> None:
@@ -36,9 +35,10 @@ class CookieJarsEnv(gym.Env):
         self.episode_length = self.df.shape[0] - 1  # num steps in episode
         self.num_jars = self.df.shape[1] - 1
 
-        # Action space: 1.0 represents 100% of cookie wealth (all cookies in plate and jars)
+        # Action space: unnormalized proportion of wealth in each jar/plate (env will normalize
+        # action values to ensure sum to 1)
         self.action_space = spaces.Box(
-            low=-1.0, high=1.0, shape=(self.num_jars,)
+            low=0.0, high=1.0, shape=(self.num_jars + 1,)
         )
         # Obs space: (num cookies in each jar... , bundle sizes..., num cookies on plate)
         self.observation_space = spaces.Box(
@@ -68,16 +68,24 @@ class CookieJarsEnv(gym.Env):
         
         if illegal action, do noop and give penalty (scaled by how much you went negative)
         """
+        assert action.shape[0] == self.num_jars + 1
+        if np.all(action == 0):
+            action = np.ones_like(action)
         wealth_old = self.get_wealth()
         bundle_size_old = self.bundle_sizes
-        temp_jars, temp_plate, penalty = self.dry_run_action(action)
+        
+        proportions = action / np.sum(action)
+        self.jars = proportions[:-1] * wealth_old
+        self.plate = proportions[-1] * wealth_old
+        assert np.isclose(self.get_wealth(), wealth_old)
 
-        # action is legal if penalty is 0; if illegal, then don't apply action
-        if penalty == 0:
-            self.plate = temp_plate
-            self.jars = temp_jars
-        else:
-            self.penalties += penalty
+        # # action is legal if penalty is 0; if illegal, then don't apply action
+        # temp_jars, temp_plate, penalty = self.dry_run_action(action)
+        # if penalty == 0:
+        #     self.plate = temp_plate
+        #     self.jars = temp_jars
+        # else:
+        #     self.penalties += penalty
 
         # Now, traverse 1 time unit, growing/shrinking cookie jars
         self.time_ind += 1
@@ -87,33 +95,28 @@ class CookieJarsEnv(gym.Env):
             self.done = True
 
         wealth_new = self.get_wealth()
-        reward = wealth_new - wealth_old - penalty
+        # reward = wealth_new - wealth_old - penalty
+        reward = wealth_new - wealth_old
         
         obs = np.concatenate((self.jars, self.bundle_sizes, [self.plate]))
         return obs, reward, self.done, {}
 
     def render(self, mode="human"):
-        # return np.concatenate((self.jars, self.bundle_sizes, [self.plate]))
-        return (
-            f"total={self.plate + np.sum(self.jars) - self.penalties}, "
-            f"plate={self.plate}, "
-            f"sum_jars={np.sum(self.jars)}, "
-            f"penalties={self.penalties}."
-        )
+        return np.concatenate((self.jars, [self.plate]))
 
-    def dry_run_action(self, action: np.ndarray) -> Tuple[np.ndarray, float, float]:
-        """
-        """
-        wealth = self.get_wealth()
-        temp_plate = self.plate - np.sum(action * wealth)
-        temp_jars = self.jars + action * wealth
+    # def dry_run_action(self, action: np.ndarray) -> Tuple[np.ndarray, float, float]:
+    #     """
+    #     """
+    #     wealth = self.get_wealth()
+    #     temp_plate = self.plate - np.sum(action * wealth)
+    #     temp_jars = self.jars + action * wealth
         
-        # penalty indicates how badly your action turned you negative
-        penalty = np.abs(temp_plate) * self.penalty_factor if temp_plate < 0 else 0
-        neg_jars_mask = np.where(temp_jars < 0)
-        penalty += np.sum(np.abs(temp_jars[neg_jars_mask]))
+    #     # penalty indicates how badly your action turned you negative
+    #     penalty = np.abs(temp_plate) * self.penalty_factor if temp_plate < 0 else 0
+    #     neg_jars_mask = np.where(temp_jars < 0)
+    #     penalty += np.sum(np.abs(temp_jars[neg_jars_mask]))
         
-        return temp_jars, temp_plate, penalty
+    #     return temp_jars, temp_plate, penalty
     
     def get_wealth(self) -> float:
         return self.plate + np.sum(self.jars)

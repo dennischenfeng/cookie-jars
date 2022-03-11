@@ -12,7 +12,8 @@ def test_env_obs_and_rew():
     env.reset()
     assert env.time_ind == 0
 
-    action = np.zeros(30)
+    action = np.zeros(31)
+    action[-1] = 1.0
     obs, rew, done, info = env.step(action)
     jars = obs[:env.num_jars]
     bundle_sizes = obs[env.num_jars:-1]
@@ -24,11 +25,12 @@ def test_env_obs_and_rew():
     assert env.get_wealth() == 1e6
     assert rew == 0
 
-    action = np.zeros(30)
+    action = np.zeros(31)
     wealth = env.get_wealth()
-    action[0] = 100 / wealth
-    action[2] = 200 / wealth
-    action[4] = 1000 / wealth
+    action[0] = 0.0001
+    action[2] = 0.0002
+    action[4] = 0.0010
+    action[-1] = 0.9987
     obs, rew, done, info = env.step(action)
     jars = obs[:env.num_jars]
     bundle_sizes = obs[env.num_jars:-1]
@@ -42,45 +44,46 @@ def test_env_obs_and_rew():
     assert env.get_wealth() > 1e6
     assert rew > 0
 
-    action = np.zeros(30)
+    action = np.zeros(31)
     wealth = env.get_wealth()
-    action[0] = -50 / wealth
-    action[2] = 200 / wealth
-    action[4] = 1000 / wealth
+    action[0] = 0.0002
+    action[2] = 0.0001
+    action[4] = 0.0010
+    action[-1] = 0.9987
     obs, rew, done, info = env.step(action)
     jars = obs[:env.num_jars]
     bundle_sizes = obs[env.num_jars:-1]
     plate = obs[-1]
     assert env.time_ind == 3
     assert jars[0] == pytest.approx(
-        ((100 * 83.88 / 82.80) - 50) * 83.32 / 83.88, 
+        0.0002 * wealth * 83.32 / 83.88, 
         abs=0.01,
     )
     assert jars[2] == pytest.approx(
-        ((200 * 41.23 / 40.83) + 200) * 41.26 / 41.23, 
+        0.0001 * wealth * 41.26 / 41.23, 
         abs=0.01,
     )
-    assert plate == 1e6 - 50 - 2 * 200 - 2 * 1000
+    assert plate == 0.9987 * wealth
 
-    # illegal action
-    action = np.zeros(30)
-    wealth = env.get_wealth()
-    action[0] = 0 / wealth
-    action[2] = -1000 / wealth
-    obs, rew, done, info = env.step(action)
-    jars = obs[:env.num_jars]
-    bundle_sizes = obs[env.num_jars:-1]
-    plate = obs[-1]
-    assert jars[2] == pytest.approx(400, rel=0.05)
-    assert plate == 1e6 - 50 - 2 * 200 - 2 * 1000  # unchanged from last time step
-    assert rew == pytest.approx(-600, rel=0.10)
+    # # illegal action
+    # action = np.zeros(31)
+    # wealth = env.get_wealth()
+    # action[0] = 0 / wealth
+    # action[2] = -1000 / wealth
+    # obs, rew, done, info = env.step(action)
+    # jars = obs[:env.num_jars]
+    # bundle_sizes = obs[env.num_jars:-1]
+    # plate = obs[-1]
+    # assert jars[2] == pytest.approx(400, rel=0.05)
+    # assert plate == 1e6 - 50 - 2 * 200 - 2 * 1000  # unchanged from last time step
+    # assert rew == pytest.approx(-600, rel=0.10)
 
 
 def test_env_done():
     env = CookieJarsEnv('train')
     env.reset()
 
-    action = np.zeros(30)
+    action = np.zeros(31)
 
     for i in range(env.episode_length - 1):
         obs, rew, done, info = env.step(action)
