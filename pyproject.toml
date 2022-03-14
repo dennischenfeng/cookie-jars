@@ -13,6 +13,8 @@ pandas = "^1.1"
 plotly = "^5.6.0"
 stable-baselines3 = "^1.4.0"
 wandb = "^0.12.11"
+stockstats = "^0.4.1"
+tqdm = "^4.63.0"
 
 [tool.poetry.dev-dependencies]
 
