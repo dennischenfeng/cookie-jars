@@ -135,3 +135,6 @@ dmypy.json
 wandb
 notebooks/runs
 notebooks/models
+
+# mac
+.DS_Store
