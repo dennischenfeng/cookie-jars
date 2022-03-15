@@ -16,11 +16,11 @@ def test_env_obs_and_rew():
     action[-1] = 1.0
     obs, rew, done, info = env.step(action)
     jars = obs[:env.num_jars]
-    bundle_sizes = obs[env.num_jars:-1]
+    bundle_sizes = obs[env.num_jars:(2 * env.num_jars)]
     plate = obs[-1]
     assert env.time_ind == 1
     assert np.all(jars == 0)
-    np.testing.assert_allclose(bundle_sizes[:3], [82.80, 40.44, 40.83], atol=0.01)
+    np.testing.assert_allclose(bundle_sizes[:3], [58.95, 35.75, 34.07], rtol=0.001)
     assert plate == 1e6
     assert env.get_wealth() == 1e6
     assert rew == 0
@@ -36,10 +36,10 @@ def test_env_obs_and_rew():
     bundle_sizes = obs[env.num_jars:-1]
     plate = obs[-1]
     assert env.time_ind == 2
-    assert jars[0] == pytest.approx(100 * 83.88 / 82.80, abs=0.01)
-    assert jars[2] == pytest.approx(200 * 41.23 / 40.83, abs=0.01)
-    assert jars[4] == pytest.approx(1000 * 16.21 / 15.74, abs=0.01)
-    np.testing.assert_allclose(bundle_sizes[:3], [83.88, 39.19, 41.23], atol=0.01)
+    assert jars[0] == pytest.approx(100 * 59.783 / 58.95, rel=0.001)
+    assert jars[2] == pytest.approx(200 * 34.62 / 34.07, rel=0.001)
+    assert jars[4] == pytest.approx(1000 * 14.00 / 13.84, rel=0.001)
+    np.testing.assert_allclose(bundle_sizes[:3], [59.78, 37.61, 34.62], rtol=0.001)
     assert plate == 1e6 - 100 - 200 - 1000
     assert env.get_wealth() > 1e6
     assert rew > 0
@@ -56,12 +56,12 @@ def test_env_obs_and_rew():
     plate = obs[-1]
     assert env.time_ind == 3
     assert jars[0] == pytest.approx(
-        0.0002 * wealth * 83.32 / 83.88, 
-        abs=0.01,
+        0.0002 * wealth * 59.83 / 59.783, 
+        rel=0.001,
     )
     assert jars[2] == pytest.approx(
-        0.0001 * wealth * 41.26 / 41.23, 
-        abs=0.01,
+        0.0001 * wealth * 35.18 / 34.62, 
+        rel=0.001,
     )
     assert plate == 0.9987 * wealth
 

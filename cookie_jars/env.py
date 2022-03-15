@@ -7,13 +7,21 @@ from definitions import ROOT_DIR
 from scipy.special import softmax
 
 class CookieJarsEnv(gym.Env):
-    def __init__(self, split: str, initial_plate: float = 1e6, penalty_factor: float = 100) -> None:
+    def __init__(
+        self, 
+        split: str, 
+        initial_plate: float = 1e6, 
+        penalty_factor: float = 100,
+        include_indicators: bool = True,
+    ) -> None:
         super().__init__()
         """
         :param split: 'train', 'val', or 'test' split. 
+        :param use_indicators: whether to include stock technical indicators as features
         """
         self.initial_plate = initial_plate
         self.penalty_factor = penalty_factor
+        self.include_indicators = include_indicators
 
         raw_df = pd.read_csv(ROOT_DIR / 'cookie_jars/data/stocks_data.csv')
         num_total = raw_df.shape[0]
@@ -33,21 +41,28 @@ class CookieJarsEnv(gym.Env):
 
         assert self.df.columns[0] == 'time_id'
         self.episode_length = self.df.shape[0] - 1  # num steps in episode
-        self.num_jars = self.df.shape[1] - 1
+        self.num_jars = int((self.df.shape[1] - 1) / 5)
+        assert self.num_jars == 30  # for now, sanity check that I'm using 30 stocks
 
         # Action space: unnormalized proportion of wealth in each jar/plate (env will normalize
         # action values to ensure sum to 1)
         self.action_space = spaces.Box(
             low=0.0, high=1.0, shape=(self.num_jars + 1,)
         )
-        # Obs space: (num cookies in each jar... , bundle sizes..., num cookies on plate)
+        # Obs space: (jar_contents, bundle sizes, [indicators], plate contents)
+        if self.include_indicators:
+            obs_shape = (6 * self.num_jars + 1,)
+        else:
+            obs_shape = (2 * self.num_jars + 1,)
+
         self.observation_space = spaces.Box(
-            low=0.0, high=1e6, shape=(2 * self.num_jars + 1,)
+            low=0.0, high=1e6, shape=obs_shape
         )
 
         self.time_ind = None  # time index (diff from time_id in that it increments contiguously)
         self.jars = None
         self.bundle_sizes = None  # will be set in `reset`
+        self.indicators = None
         self.plate = None
         self.penalties = None
         self.done = None
@@ -55,12 +70,15 @@ class CookieJarsEnv(gym.Env):
     def reset(self) -> None:
         self.time_ind = 0
         self.jars = np.zeros((self.num_jars,))
-        self.bundle_sizes = np.array(self.df.iloc[self.time_ind, 1:])
+        self.bundle_sizes = np.array(self.df.iloc[self.time_ind, 1:(self.num_jars + 1)])
         self.plate = self.initial_plate
         self.penalties = 0
         self.done = False
 
-        obs = np.concatenate((self.jars, self.bundle_sizes, [self.plate]))
+        if self.include_indicators:
+            self.indicators = np.array(self.df.iloc[self.time_ind, (self.num_jars + 1):])
+
+        obs = self.get_obs()
         return obs
 
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, dict]:
@@ -89,16 +107,18 @@ class CookieJarsEnv(gym.Env):
 
         # Now, traverse 1 time unit, growing/shrinking cookie jars
         self.time_ind += 1
-        self.bundle_sizes = np.array(self.df.iloc[self.time_ind, 1:])
+        self.bundle_sizes = np.array(self.df.iloc[self.time_ind, 1:(self.num_jars + 1)])
         self.jars *= self.bundle_sizes / bundle_size_old
         if self.time_ind == self.episode_length:
             self.done = True
+        if self.include_indicators:
+            self.indicators = np.array(self.df.iloc[self.time_ind, (self.num_jars + 1):])
 
         wealth_new = self.get_wealth()
         # reward = wealth_new - wealth_old - penalty
         reward = wealth_new - wealth_old
         
-        obs = np.concatenate((self.jars, self.bundle_sizes, [self.plate]))
+        obs = self.get_obs()
         return obs, reward, self.done, {}
 
     def render(self, mode="human"):
@@ -120,3 +140,10 @@ class CookieJarsEnv(gym.Env):
     
     def get_wealth(self) -> float:
         return self.plate + np.sum(self.jars)
+    
+    def get_obs(self) -> np.ndarray:
+        if self.include_indicators:
+            obs = np.concatenate((self.jars, self.bundle_sizes, self.indicators, [self.plate]))
+        else:
+            obs = np.concatenate((self.jars, self.bundle_sizes, [self.plate]))
+        return obs
