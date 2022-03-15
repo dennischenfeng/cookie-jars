@@ -97,3 +97,13 @@ def test_env_bad_split():
     with pytest.raises(ValueError):
         _ = CookieJarsEnv('trian')  # notice the typo
 
+
+def test_env_include_indicators():
+    env = CookieJarsEnv('train', include_indicators=True)
+    obs = env.reset()
+    assert obs.shape[0] == 1 + 6 * 30
+
+    env = CookieJarsEnv('train', include_indicators=False)
+    obs = env.reset()
+    assert obs.shape[0] == 1 + 2 * 30
+    
